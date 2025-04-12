@@ -4,10 +4,13 @@ import os
 
 app = Flask(__name__)
 
-# Use new OpenAI client interface
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Set up OpenAI client using project-based key + project ID
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    project=os.getenv("OPENAI_PROJECT_ID")
+)
 
-# Initial system prompt
+# System prompt defines Moira and Lee's recursive philosophical structure
 dialogue_history = [
     {
         "role": "system",
@@ -19,7 +22,6 @@ dialogue_history = [
 ]
 
 current_speaker = "Moira"
-
 
 def get_next_line():
     global dialogue_history, current_speaker
@@ -45,25 +47,23 @@ def get_next_line():
         return reply_text
 
     except Exception as e:
+        import traceback
         print("❌ OpenAI API Error:", e)
-        return "ERROR: Failed to fetch reply."
-
+        traceback.print_exc()
+        return f"ERROR: {str(e)}"
 
 def current_speaker_switch():
     global current_speaker
     current_speaker = "Lee" if current_speaker == "Moira" else "Moira"
 
-
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/dialogue')
 def dialogue():
     line = get_next_line()
     return jsonify({"speaker": current_speaker, "line": line})
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
