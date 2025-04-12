@@ -15,23 +15,23 @@ current_speaker = "Moira"
 
 def get_next_line():
     global dialogue_history, current_speaker
-    
+
     prompt = dialogue_history + [{"role": "user", "content": f"{current_speaker}:"}]
-    
+    print("🔍 Prompt about to be sent:", prompt)
+    print("🔑 API Key:", openai.api_key)
+
     response = openai.ChatCompletion.create(
         model="gpt-4-turbo",
         messages=prompt,
         temperature=0.8,
         max_tokens=60
     )
-    
+
     reply_text = response.choices[0].message.content.strip()
-    
     dialogue_history.append({"role": "assistant", "content": f"{current_speaker}: {reply_text}"})
-    
     current_speaker_switch()
-    
     return reply_text
+
 
 def current_speaker_switch():
     global current_speaker
