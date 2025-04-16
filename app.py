@@ -1,55 +1,80 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, jsonify, render_template
 import openai
 import os
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
+import json
+import threading
+import time
 
 app = Flask(__name__)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Store conversation history and character state
-conversation = []
-max_messages = 20
-current_speaker = "Moira"
+CONVO_FILE = "conversation.json"
+MAX_LINES = 30
+INTERVAL = 30  # seconds
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+# Initialize file if missing
+if not os.path.exists(CONVO_FILE):
+    with open(CONVO_FILE, "w") as f:
+        json.dump([], f)
 
-@app.route('/discuss', methods=['GET'])
-def discuss():
-    global current_speaker
+# Load conversation from file
+def load_conversation():
+    with open(CONVO_FILE, "r") as f:
+        return json.load(f)
 
-    # Format history for GPT
-    messages = [{"role": "system", "content": "You are simulating a conversation between Moira and Lee. Be vivid and insightful."}]
-    for line in conversation:
-        messages.append({"role": "user", "content": line})
+# Save conversation to file
+def save_conversation(convo):
+    with open(CONVO_FILE, "w") as f:
+        json.dump(convo[-MAX_LINES:], f)
 
-    # Alternate speakers
-    prompt = f"{current_speaker}:"
-    messages.append({"role": "user", "content": prompt})
+# Alternate speakers
+def next_speaker(convo):
+    if not convo:
+        return "Moira"
+    return "Lee" if convo[-1]["speaker"] == "Moira" else "Moira"
+
+# Generate next line using GPT
+def generate_line(convo):
+    speaker = next_speaker(convo)
+    messages = [{"role": "system", "content": "You are two characters named Moira and Lee having a philosophical dialogue. Keep responses short and reflective."}]
+    
+    # Add last few lines for context
+    for line in convo[-6:]:
+        messages.append({"role": "user", "content": f'{line["speaker"]}: {line["text"]}'})
+    
+    messages.append({"role": "user", "content": f"{speaker}:"})
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=messages
+            model="gpt-3.5-turbo",
+            messages=messages,
+            max_tokens=60,
+            temperature=0.7
         )
-        reply = response['choices'][0]['message']['content'].strip()
-
-        # Update conversation history
-        conversation.append(reply)
-        if len(conversation) > max_messages:
-            conversation.pop(0)
-
-        # Alternate speaker
-        current_speaker = "Lee" if current_speaker == "Moira" else "Moira"
-
-        return jsonify({'message': reply})
+        text = response['choices'][0]['message']['content'].strip()
+        convo.append({"speaker": speaker, "text": text})
+        save_conversation(convo)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("GPT error:", e)
 
-@app.route('/conversation', methods=['GET'])
-def get_conversation():
-    return jsonify({'conversation': conversation})
+# Background thread to update conversation every 30 seconds
+def background_loop():
+    while True:
+        convo = load_conversation()
+        generate_line(convo)
+        time.sleep(INTERVAL)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/lines")
+def lines():
+    convo = load_conversation()
+    return jsonify(convo)
+
+# Start background thread
+threading.Thread(target=background_loop, daemon=True).start()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
