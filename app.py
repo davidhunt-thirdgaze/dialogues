@@ -7,7 +7,12 @@ import time
 
 app = Flask(__name__)
 
-# Full client configuration for project-based keys
+# Print environment variables for debugging (remove after confirmation)
+print("DEBUG: OPENAI_API_KEY =", os.getenv("OPENAI_API_KEY"))
+print("DEBUG: OPENAI_ORG_ID =", os.getenv("OPENAI_ORG_ID"))
+print("DEBUG: OPENAI_PROJECT_ID =", os.getenv("OPENAI_PROJECT_ID"))
+
+# Initialize OpenAI client with all required credentials
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
     organization=os.getenv("OPENAI_ORG_ID"),
@@ -18,7 +23,7 @@ CONVO_FILE = "conversation.json"
 MAX_LINES = 30
 INTERVAL = 30  # seconds
 
-# Initialize conversation file if it doesn't exist
+# Create file if it doesn't exist
 if not os.path.exists(CONVO_FILE):
     with open(CONVO_FILE, "w") as f:
         json.dump([], f)
@@ -45,7 +50,6 @@ def generate_line(convo):
 
     for line in convo[-6:]:
         messages.append({"role": "user", "content": f'{line["speaker"]}: {line["text"]}'})
-
     messages.append({"role": "user", "content": f"{speaker}:"})
 
     try:
@@ -58,6 +62,7 @@ def generate_line(convo):
         text = response.choices[0].message.content.strip()
         convo.append({"speaker": speaker, "text": text})
         save_conversation(convo)
+        print(f"{speaker}: {text}")  # Runtime confirmation of response
     except Exception as e:
         print("GPT error:", e)
 
@@ -76,7 +81,6 @@ def lines():
     convo = load_conversation()
     return jsonify(convo)
 
-# Start background generation loop
 threading.Thread(target=background_loop, daemon=True).start()
 
 if __name__ == "__main__":
