@@ -6,7 +6,13 @@ import threading
 import time
 
 app = Flask(__name__)
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Full client configuration for project-based keys
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    organization=os.getenv("OPENAI_ORG_ID"),
+    project=os.getenv("OPENAI_PROJECT_ID")
+)
 
 CONVO_FILE = "conversation.json"
 MAX_LINES = 30
